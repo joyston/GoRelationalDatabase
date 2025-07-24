@@ -46,7 +46,27 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("Albums found %v\n", albums)
+	fmt.Printf("Albums found: %v\n", albums)
+
+	album, err := getAlbumById(4)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("Album found: %v\n", album)
+}
+
+func getAlbumById(Id int64) (Album, error) {
+	var alb Album
+
+	row := db.QueryRow("Select * from album where id=?", Id)
+
+	if err := row.Scan(&alb.Id, &alb.Artist, &alb.Title, &alb.Price); err != nil {
+		if err == sql.ErrNoRows {
+			return alb, fmt.Errorf("getAlbumById: %d, Album does not exist", Id)
+		}
+		return alb, fmt.Errorf("getAlbumById: %d, %v", Id, err)
+	}
+	return alb, nil
 }
 
 func getAlbumsbyArtist(name string) ([]Album, error) {
