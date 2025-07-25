@@ -14,3 +14,9 @@ VALUES
   ('Giant Steps', 'John Coltrane', 63.99),
   ('Jeru', 'Gerry Mulligan', 17.99),
   ('Sarah Vaughan', 'Sarah Vaughan', 34.98);
+
+CREATE TABLE `recordings`.`songs` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `name` VARCHAR(128) NULL,
+  `album_fkid` INT NULL,
+  PRIMARY KEY (`id`));
