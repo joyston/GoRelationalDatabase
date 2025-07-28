@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
@@ -83,6 +84,31 @@ func main() {
 	}
 	fmt.Printf("Albums: %v \n Songs: %v\n", rsAlbums, rsSongs)
 
+}
+
+func CreateOrder(ctx context.Context, albumName string, qty int) (int64, error) {
+	//create a handler to handle errors
+	fail := func(err error) (int64, error) {
+		return 0, fmt.Errorf("Create Order: %v", err)
+	}
+
+	//establish transaction
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		fail(err)
+	}
+
+	//If any queries fail
+	defer tx.Rollback()
+
+	//Code for transactions
+
+	//Commit is all Queries pass
+	if err := tx.Commit(); err != nil {
+		fail(err)
+	}
+
+	return orderId, nil
 }
 
 // function for mutliple result sets
