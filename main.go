@@ -78,6 +78,8 @@ func main() {
 	// }
 	// fmt.Printf("Id of the new Song: %d\n", songId)
 
+	//CreateOrder(ctx, "Marshal Matters", 2, Album{Title: "Spiderverse", Artist: "Metroboom", Price: 120.50})
+
 	rsAlbums, rsSongs, err := getBoth()
 	if err != nil {
 		log.Fatal(err)
@@ -86,10 +88,10 @@ func main() {
 
 }
 
-func CreateOrder(ctx context.Context, albumName string, qty int) (int64, error) {
+func CreateOrder(ctx context.Context, albumName string, qty int, alb Album) (int64, error) {
 	//create a handler to handle errors
 	fail := func(err error) (int64, error) {
-		return 0, fmt.Errorf("Create Order: %v", err)
+		return 0, fmt.Errorf("create order: %v", err)
 	}
 
 	//establish transaction
@@ -103,12 +105,41 @@ func CreateOrder(ctx context.Context, albumName string, qty int) (int64, error) 
 
 	//Code for transactions
 
+	//Check if quantity available
+	var enough bool
+	if err := tx.QueryRowContext(ctx, "Select (quantity >= ?) from album where title=?", qty, albumName).Scan(&enough); err != nil {
+		if err == sql.ErrNoRows {
+			fail(fmt.Errorf("no such album exists"))
+		}
+		fail(err)
+	}
+
+	if !enough {
+		fail(fmt.Errorf("not enough Albums"))
+	} else { //Update quantity
+		_, err := tx.ExecContext(ctx, "Update album set quantity= quantity - ? where", qty)
+		if err != nil {
+			fail(err)
+		}
+	}
+
+	//Insert new Album for transaction demostration
+	result, err := tx.ExecContext(ctx, "Insert into album (title, artist, price) values (?,?,?)", alb.Title, alb.Artist, alb.Price)
+	if err != nil {
+		fail(err)
+	}
+
+	OrderId, err := result.LastInsertId()
+	if err != nil {
+		fail(err)
+	}
+
 	//Commit is all Queries pass
 	if err := tx.Commit(); err != nil {
 		fail(err)
 	}
 
-	return orderId, nil
+	return OrderId, nil
 }
 
 // function for mutliple result sets
