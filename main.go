@@ -6,15 +6,17 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/go-sql-driver/mysql"
 )
 
 type Album struct {
-	Id     int64
-	Title  string
-	Artist string
-	Price  float32
+	Id       int64
+	Title    string
+	Artist   string
+	Price    float32
+	Quantity int64
 }
 
 type Song struct {
@@ -78,7 +80,15 @@ func main() {
 	// }
 	// fmt.Printf("Id of the new Song: %d\n", songId)
 
-	//CreateOrder(ctx, "Marshal Matters", 2, Album{Title: "Spiderverse", Artist: "Metroboom", Price: 120.50})
+	//var ctx context.Context
+	queryctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	orderId, err := CreateOrder(queryctx, "Marshal Matters", 2, Album{Title: "Spiderverse", Artist: "Metroboom", Price: 120.50, Quantity: 4})
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("Last added Order Id: %v\n", orderId)
 
 	rsAlbums, rsSongs, err := getBoth()
 	if err != nil {
@@ -97,7 +107,7 @@ func CreateOrder(ctx context.Context, albumName string, qty int, alb Album) (int
 	//establish transaction
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		fail(err)
+		return fail(err)
 	}
 
 	//If any queries fail
@@ -109,34 +119,34 @@ func CreateOrder(ctx context.Context, albumName string, qty int, alb Album) (int
 	var enough bool
 	if err := tx.QueryRowContext(ctx, "Select (quantity >= ?) from album where title=?", qty, albumName).Scan(&enough); err != nil {
 		if err == sql.ErrNoRows {
-			fail(fmt.Errorf("no such album exists"))
+			return fail(fmt.Errorf("no such album exists"))
 		}
-		fail(err)
+		return fail(err)
 	}
 
 	if !enough {
-		fail(fmt.Errorf("not enough Albums"))
+		return fail(fmt.Errorf("not enough Albums"))
 	} else { //Update quantity
 		_, err := tx.ExecContext(ctx, "Update album set quantity= quantity - ? where", qty)
 		if err != nil {
-			fail(err)
+			return fail(err)
 		}
 	}
 
 	//Insert new Album for transaction demostration
-	result, err := tx.ExecContext(ctx, "Insert into album (title, artist, price) values (?,?,?)", alb.Title, alb.Artist, alb.Price)
+	result, err := tx.ExecContext(ctx, "Insert into album (title, artist, price, quantity) values (?,?,?,?)", alb.Title, alb.Artist, alb.Price, alb.Quantity)
 	if err != nil {
-		fail(err)
+		return fail(err)
 	}
 
 	OrderId, err := result.LastInsertId()
 	if err != nil {
-		fail(err)
+		return fail(err)
 	}
 
 	//Commit is all Queries pass
 	if err := tx.Commit(); err != nil {
-		fail(err)
+		return fail(err)
 	}
 
 	return OrderId, nil
@@ -161,7 +171,7 @@ func getBoth() ([]Album, []Song, error) {
 
 	for rows.Next() {
 		var alb Album
-		if err := rows.Scan(&alb.Id, &alb.Title, &alb.Artist, &alb.Price); err != nil {
+		if err := rows.Scan(&alb.Id, &alb.Title, &alb.Artist, &alb.Price, &alb.Quantity); err != nil {
 			if err == sql.ErrNoRows {
 				return nil, nil, fmt.Errorf("getBoth(): No Albums Found %v", err)
 			}
@@ -222,7 +232,7 @@ func getAlbumById(Id int64) (Album, error) {
 
 	row := db.QueryRow("Select * from album where id=?", Id)
 
-	if err := row.Scan(&alb.Id, &alb.Artist, &alb.Title, &alb.Price); err != nil {
+	if err := row.Scan(&alb.Id, &alb.Artist, &alb.Title, &alb.Price, &alb.Quantity); err != nil {
 		if err == sql.ErrNoRows {
 			return alb, fmt.Errorf("getAlbumById: %d, Album does not exist", Id)
 		}
@@ -243,7 +253,7 @@ func getAlbumsbyArtist(name string) ([]Album, error) {
 
 	for rows.Next() {
 		var alb Album
-		if err := rows.Scan(&alb.Id, &alb.Artist, &alb.Title, &alb.Price); err != nil {
+		if err := rows.Scan(&alb.Id, &alb.Artist, &alb.Title, &alb.Price, &alb.Quantity); err != nil {
 			return nil, fmt.Errorf("getAlbumsbyArtist %q: %v", name, err)
 		}
 		albums = append(albums, alb)
